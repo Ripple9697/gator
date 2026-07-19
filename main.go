@@ -1,22 +1,32 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 
 	"github.com/Ripple9697/gator/internal/config"
+	"github.com/Ripple9697/gator/internal/database"
+	_ "github.com/lib/pq"
 )
 
 func main() {
 	fmt.Println("started")
+
 	cfg, err := config.Read()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("Read config again: %+v\n", cfg)
 
-	stg := state{cfg: &cfg}
+	db, err := sql.Open("postgres", cfg.DBURL)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	dbQueries := database.New(db)
+
+	stg := state{db: dbQueries, cfg: &cfg}
 	arguments := os.Args
 	if len(arguments) < 2 {
 		fmt.Fprintln(os.Stderr, err)
@@ -26,6 +36,10 @@ func main() {
 	cmds := commands{handlers: make(map[string]func(*state, command) error)}
 
 	cmds.register("login", handlerLogin)
+	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
+	cmds.register("agg", handlerAgg)
 
 	cmd := command{
 		name: arguments[1],
