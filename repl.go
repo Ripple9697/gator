@@ -50,7 +50,7 @@ func handlerLogin(s *state, cmd command) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("sucessfully set username")
+	fmt.Println("sucessfully switched user")
 	return nil
 }
 
@@ -60,10 +60,10 @@ func handlerRegister(s *state, cmd command) error {
 	}
 
 	params := database.CreateUserParams{
-		uuid.New().String(),
-		time.Now(),
-		time.Now(),
-		cmd.args[0],
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      cmd.args[0],
 	}
 
 	respUser, err := s.db.CreateUser(context.Background(), params)
@@ -109,7 +109,10 @@ func handlerUsers(s *state, cmd command) error {
 }
 
 func handlerAgg(s *state, cmd command) error {
-	feed, err := fetchFeed(context.Background(), "test")
+	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return fmt.Errorf("couldn't fetch feed: %w", err)
+	}
 	fmt.Printf("%+v\n", feed)
 	return err
 }
