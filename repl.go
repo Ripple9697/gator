@@ -117,14 +117,9 @@ func handlerAgg(s *state, cmd command) error {
 	return err
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		return fmt.Errorf("AddFeed expects a two arguments, name & url-feed.")
-	}
-
-	respUser, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return err
 	}
 
 	respFeed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
@@ -133,11 +128,83 @@ func handlerAddFeed(s *state, cmd command) error {
 		UpdatedAt: time.Now(),
 		Name:      cmd.args[0],
 		Url:       cmd.args[1],
-		UserID:    respUser.ID,
+		UserID:    user.ID,
 	})
 	if err != nil {
 		return err
 	}
-	fmt.Println(respFeed)
+
+	k, err := s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    respFeed.ID,
+	})
+
+	fmt.Println(k)
 	return nil
+}
+
+func handlerFollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("need one URL")
+	}
+	URL := cmd.args[0]
+	respFeed, err := s.db.GetFeedByURL(context.Background(), URL)
+	if err != nil {
+		return err
+	}
+
+	createdFeedFollow, err := s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    respFeed.ID,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s -> %s\n", createdFeedFollow.UserName, createdFeedFollow.FeedName)
+	return nil
+}
+
+func handlerFollowing(s *state, cmd command, user database.User) error {
+	feedfollows, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
+	if err != nil {
+		return err
+	}
+	for _, feedfollow := range feedfollows {
+		fmt.Printf("-	%s\n", feedfollow.FeedName)
+	}
+
+	return nil
+}
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("need one URL")
+	}
+	feed, err := s.db.GetFeedByURL(context.Background(), cmd.args[0])
+	if err != nil {
+		return err
+	}
+	err = s.db.UnFollowFeed(context.Background(), database.UnFollowFeedParams{UserID: user.ID, FeedID: feed.ID})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// tooling
+func middlewareLoggedIn(handler func(*state, command, database.User) error) func(*state, command) error {
+	return func(s *state, cmd command) error {
+		user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return err
+		}
+
+		return handler(s, cmd, user)
+	}
 }
