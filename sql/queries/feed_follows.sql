@@ -39,3 +39,12 @@ WHERE url = $1;
 DELETE FROM feed_follows
   where user_id = $1 AND feed_id = $2;
 
+-- name: MarkFeedFetched :exec
+UPDATE feeds
+SET last_fetched_at = $2, updated_at = $2
+WHERE id = $1;
+
+-- name: GetNextFeedToFetch :one
+SELECT * FROM feeds
+ORDER BY last_fetched_at asc NULLS FIRST
+limit 1;
