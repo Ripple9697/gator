@@ -48,3 +48,29 @@ WHERE id = $1;
 SELECT * FROM feeds
 ORDER BY last_fetched_at asc NULLS FIRST
 limit 1;
+
+-- name: CreatePost :one
+INSERT INTO posts (id,created_at,updated_at,title,url,description,published_at,feed_id)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8
+)
+RETURNING *;
+
+-- name: GetPostsForUser :many
+WITH user_feeds AS 
+(
+  select feed_id from feed_follows
+  WHERE user_id = $1
+)
+SELECT posts.* 
+FROM posts
+JOIN user_feeds on posts.feed_id = user_feeds.feed_id
+ORDER BY published_at desc NULLS LAST
+limit $2;

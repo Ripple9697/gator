@@ -29,7 +29,7 @@ func main() {
 	stg := state{db: dbQueries, cfg: &cfg}
 	arguments := os.Args
 	if len(arguments) < 2 {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "not enough args")
 		os.Exit(1)
 	}
 
@@ -44,6 +44,7 @@ func main() {
 	cmds.register("follow", middlewareLoggedIn(handlerFollow))
 	cmds.register("following", middlewareLoggedIn(handlerFollowing))
 	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	cmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	cmd := command{
 		name: arguments[1],

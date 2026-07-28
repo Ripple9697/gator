@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Ripple9697/gator/internal/config"
@@ -207,12 +210,10 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 }
 
 func scrapeFeeds(s *state) error {
-	// 1
 	feed, err := s.db.GetNextFeedToFetch(context.Background())
 	if err != nil {
 		return err
 	}
-	// 2
 	err = s.db.MarkFeedFetched(context.Background(), database.MarkFeedFetchedParams{
 		ID: feed.ID,
 		LastFetchedAt: sql.NullTime{
@@ -223,14 +224,65 @@ func scrapeFeeds(s *state) error {
 	if err != nil {
 		return err
 	}
-	// 3
 	respFeed, err := fetchFeed(context.Background(), feed.Url)
 	if err != nil {
 		return fmt.Errorf("couldn't fetch feed: %w", err)
 	}
-	// 4
 	for _, v := range respFeed.Channel.Item {
-		fmt.Printf("*	%s\n", v.Title)
+		publishedAt := sql.NullTime{}
+
+		t, err := time.Parse(time.RFC1123Z, v.PubDate)
+		if err == nil {
+			publishedAt = sql.NullTime{
+				Time:  t,
+				Valid: true,
+			}
+		}
+		_, err = s.db.CreatePost(context.Background(), database.CreatePostParams{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Title:     v.Title,
+			Url:       v.Link,
+			Description: sql.NullString{
+				String: v.Description,
+				Valid:  true,
+			},
+			PublishedAt: publishedAt,
+			FeedID:      feed.ID,
+		})
+		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key value") {
+				continue
+			}
+			log.Printf("couldn't create post: %v", err)
+			continue
+		}
+	}
+	return nil
+}
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("need one limit integer")
+	}
+	limit, err := strconv.Atoi(cmd.args[0])
+	if err != nil {
+		fmt.Println(err)
+		limit = 2
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	})
+	if err != nil {
+		return err
+	}
+	for _, p := range posts {
+		fmt.Println(p.Title)
+		fmt.Println(p.Url)
+		fmt.Println(p.Description.String)
 		fmt.Println()
 	}
 	return nil
